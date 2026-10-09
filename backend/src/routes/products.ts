@@ -107,17 +107,74 @@ router.get("/:id", (req, res) => {
  *   ]
  * }
  */
-router.post("/", (_req, res) => {
+router.post("/", (req, res) => {
+  try {
+    const {name, description, category_id, status, variants} = req.body;
+
+    // Ensure the name isn't empty or whitespace
+    if (!name || !name.trim()) {
+      return res.status(400).json({error: "Name is required"});
+    }
+    
+    // Check that there is a valid list of at least one variant
+    if(!Array.isArray(variants) || variants.length === 0) {
+      return res.status(400).json({error: "A variant is needed to make a product"})
+    }
+
+    // Check constraints of variants
+    for (const v of variants){
+      if (!v.sku || !v.sku.trim()) {
+        return res.status(400).json({error: "An SKU is required for all variants"});
+      }
+
+      if (!v.name || !v.name.trim()) {
+        return res.status(400).json({error: "A Name is required for all variants"});
+      }
+
+      if (!Number.isInteger(v.price_cents) || v.price_cents < 0) {
+        return res.status(400).json({error: "The price needs to be positive with no more than two decimals"})
+      }
+
+      if (!Number.isInteger(v.inventory_count) || v.inventory_count < 0) {
+        return res.status(400).json({error: "The inventory needs to be positive"})
+      }
+    }
+
+    // Create a transaction for the product along with all variants
+    const create = db.transaction (() => {
+      const info = db.prepare(`INSERT INTO products (name, description, category_id, status) VALUES(?,?,?,?)`)
+      .run(name.trim(), description ?? null, category_id ?? null, status ?? "active");
+      
+      const productId = Number(info.lastInsertRowid);
+
+      for (const v of variants) {
+        db.prepare(
+            `INSERT INTO variants (product_id, sku, name, price_cents, inventory_count) VALUES(?,?,?,?,?)`
+          ).run(productId, v.sku.trim(), v.name, v.price_cents, v.inventory_count);
+      }
+
+      return productId;
+    })
+      const id = create();
+
+      const created = db.prepare("SELECT * FROM products WHERE id = ?").get(id) as Record<string, unknown>;
+      const createdVariants = db.prepare("SELECT * FROM variants WHERE product_id = ?").all(id);
+
+      res.status(201).json({...created, variants: createdVariants}); } catch (err:unknown) {
+        const message = err instanceof Error ? err.message : "Error";
+        if (message.includes("UNIQUE constraint failed")) {
+          return res.status(409).json({ error: "A variant with that SKU already exists" });
+      }
+
+      res.status(500).json({error: message});
+    }
+  });
   // TODO: Implement product creation
   // 1. Validate required fields (name is required, variants array must have at least one entry)
   // 2. Validate each variant (sku required + unique, price_cents >= 0, inventory_count >= 0)
   // 3. Insert product and variants inside a transaction
   // 4. Return the created product with its variants
-  res.status(501).json({
-    error: "Not implemented",
-    hint: "Implement product creation with validation and a database transaction",
-  });
-});
+
 
 /**
  * PUT /api/products/:id

@@ -10,6 +10,7 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<number | undefined>();
+  
 
   const hasFilters = Boolean(search || categoryId);
 
