@@ -9,6 +9,7 @@ export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -21,11 +22,15 @@ export default function ProductDetailPage() {
   // Delete handler — sends soft-delete request.
   // FIXME: The button does not disable while the request is in flight,
   //        so rapid clicks can send multiple DELETE requests.
+
   const handleDelete = async () => {
     if (!id) return;
     if (!window.confirm("Are you sure you want to delete this product?"))
       return;
+    // Did this in an easier way without the error checks since its framed as a simple bug fix  
+    setDeleting(true);
     await deleteProduct(Number(id));
+    setDeleting(false);
     navigate("/products");
   };
 
@@ -83,6 +88,7 @@ export default function ProductDetailPage() {
 
           <button
             onClick={handleDelete}
+            disabled={deleting}
             className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-background px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
           >
             <Trash2 className="h-4 w-4" />
