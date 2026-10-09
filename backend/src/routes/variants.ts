@@ -36,16 +36,42 @@ router.get("/:id", (req, res) => {
  *   "inventory_count": 50
  * }
  */
-router.put("/:id", (_req, res) => {
+router.put("/:id", (req, res) => {
   // TODO: Implement variant update
   // 1. Validate that the variant exists
   // 2. Validate: price_cents >= 0, inventory_count >= 0, sku is unique (if changed)
   // 3. Update the variant in the database
   // 4. Return the updated variant
-  res.status(501).json({
-    error: "Not implemented",
-    hint: "Implement variant update with validation",
-  });
+  try {
+    const id = Number(req.params.id);
+    const existing = db.prepare("SELECT * FROM variants WHERE id = ?").get(id);
+    if (!existing) return res.status(404).json({error: "Variant not found"});
+
+    const {name, sku, price_cents, inventory_count} = req.body;
+
+    
+    if (!Number.isInteger(Number(price_cents)) || price_cents < 0){
+      return res.status(400).json({ error: "Price needs to be a float with up to two decimals which is greater than 0" });  
+    }
+
+    if (!Number.isInteger(Number(inventory_count)) || inventory_count < 0)
+      return res.status(400).json({ error: "Inventory must be a whole number, 0 or more" });
+    
+    db.prepare(
+      `UPDATE variants
+        SET sku = COALESCE(?, sku), 
+        name = COALESCE(?, name),
+        price_cents = COALESCE(?, price_cents),
+        inventory_count = COALESCE(?, inventory_count),
+        updated_at = datetime('now')
+      WHERE id = ?`).run(sku?.trim() ?? null, name?.trim() ?? null, price_cents ?? null, inventory_count ?? null, id);
+      
+      res.json(db.prepare("SELECT * FROM variants WHERE id = ?").get(id));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error";
+    res.status(500).json({error:message});
+  }
+
 });
 
 /**

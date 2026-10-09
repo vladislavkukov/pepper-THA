@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Pencil, Trash2, Package } from "lucide-react";
-import { fetchProduct, deleteProduct } from "@/lib/api";
+import { fetchProduct, deleteProduct, updateVariant } from "@/lib/api";
 import type { ProductDetail, Variant } from "@/types";
 import { formatPrice, cn } from "@/lib/utils";
 
@@ -139,6 +139,61 @@ function VariantRow({ variant }: { variant: Variant }) {
     variant.inventory_count > 0 && variant.inventory_count <= 10;
   const outOfStock = variant.inventory_count === 0;
 
+  const [price, setPrice] = useState("");
+  const [inventory, setInventory] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const editState = () => {
+    setPrice((variant.price_cents /100).toFixed(2));
+    setInventory(String(variant.inventory_count));
+    setError(null);
+    setEditing(true);
+
+  };
+
+  const cancel = () => {
+    setEditing(false);
+    setError(null);
+  }
+
+  const save = async () => {
+    const priceNum = Number(price);
+    const inv = Number(inventory);
+    if (price === "" || Number.isNaN(priceNum) || priceNum < 0) {
+      return setError("Price needs to be 0 or more");
+    }
+    if (inventory === "" || !Number.isInteger(inv) || inv < 0) {
+      return setError("Inventory needs to be 0 or more")
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await updateVariant(variant.id, {
+        name: variant.name,
+        sku: variant.sku,
+        price_cents: Math.round(priceNum*100),
+        inventory_count: inv
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error ?? `Request failed (${res.status})`);
+        return
+      }
+
+      setSuccess("The record has been successfully updated.")
+      setEditing(false);
+    } catch {
+      setError("Error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <tr className="border-b transition-colors hover:bg-muted/50">
       <td className="p-4 align-middle font-mono text-xs">
@@ -146,32 +201,61 @@ function VariantRow({ variant }: { variant: Variant }) {
       </td>
       <td className="p-4 align-middle font-medium">{variant.name}</td>
       <td className="p-4 text-right align-middle tabular-nums">
-        {formatPrice(variant.price_cents)}
+        {editing ? (
+          <input type="number" min="0"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          className="px-1 py-1 rounded border border-gray-200" />
+        ) 
+        : (formatPrice(variant.price_cents))}
       </td>
       <td className="p-4 text-right align-middle tabular-nums">
-        <span
-          className={cn(
-            outOfStock && "text-destructive",
-            lowStock && "text-amber-600"
-          )}
+        
+       {editing ? (
+        <input type = "number" min = "0"
+          value = {inventory}
+          onChange={(e) => setInventory(e.target.value)}
+          className="px-1 py-1 rounded border border-gray-200" />
+        ) : ( <span
+            className={cn(
+              outOfStock && "text-destructive",
+              lowStock && "text-amber-600"
+            )}
         >
           {variant.inventory_count}
           {outOfStock && (
             <Package className="ml-1 inline h-3.5 w-3.5 text-destructive/60" />
           )}
         </span>
+        )}
       </td>
       <td className="p-4 text-right align-middle">
+        {editing ? (
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex gap-1">
+              <button onClick={save}
+              disabled={saving}
+              className="mx-auto block rounded bg-green-100 px-6 py-4 mt-9">
+                {saving ? "Saving" : "Save"}
+              </button>
+              <button onClick={cancel}
+              disabled = {saving}
+              className="mx-auto block rounded bg-red-100 px-6 py-4 mt-9">
+                Cancel
+              </button>
+            </div>
+            {success && <p className="text-green-700">{success}</p>}
+            {error && <p className="text-red-700">{error}</p>}
+          </div>
+        ) : (
         <button
           className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          onClick={() => {
-            // TODO: Open variant edit form / dialog
-            alert("Variant editing is not yet implemented.");
-          }}
+          onClick={editState}
         >
           <Pencil className="h-3 w-3" />
           Edit
         </button>
+        )}
       </td>
     </tr>
   );

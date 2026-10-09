@@ -122,7 +122,7 @@ describe("Task 2 — Update Variant", () => {
     const res = await request(app)
       .put(`/api/variants/${variant.id}`)
       .send({ price_cents: 4242, inventory_count: 77 });
-
+    
     expect(res.status).toBe(200);
     expect(res.body.price_cents).toBe(4242);
     expect(res.body.inventory_count).toBe(77);
